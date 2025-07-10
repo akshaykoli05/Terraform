@@ -1,0 +1,49 @@
+name: Terraform Deploy with OPA
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Plan
+      run: terraform plan -out=tfplan
+
+    - name: Convert Plan to JSON
+      run: terraform show -json tfplan > tfplan.json
+
+    - name: Download OPA
+      run: |
+        curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
+        chmod +x opa
+
+    - name: Run OPA Policy Check
+      run: |
+        ./opa eval --input tfplan.json --data policy.rego "data.terraform.rg.deny" > result.json
+        if grep -q 'Resource Group' result.json; then
+          echo "OPA policy violation detected. Failing the workflow."
+          cat result.json
+          exit 1
+        fi
+
+    - name: Terraform Apply
+      if: success()
+      run: terraform apply -auto-approve
+      env:
+        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
