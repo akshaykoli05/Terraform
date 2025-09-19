@@ -32,3 +32,4 @@ module "vm" {
   network_interface_id = var.network_interface_id
   keyvault_id         = module.keyvault.azurerm_key_vault_id
 }
+## endof file
